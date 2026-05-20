@@ -1,258 +1,268 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { AUTH_API_BASE, authApi } from '../api/authApi'
+import { useAuth } from '../state/AuthContext'
+import { flowApi } from '../api/flowApi'
+import { ApiError } from '../api/http'
 
-type AuthTab = 'login' | 'register'
+type Tab = 'login' | 'register-candidate' | 'register-employer'
 
-type AuthPageProps = {
-  onLoginSuccess: (accessToken: string) => void
-}
-
-export function AuthPage({ onLoginSuccess }: AuthPageProps) {
-  const [activeTab, setActiveTab] = useState<AuthTab>('login')
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState('')
+export function AuthPage() {
+  const { login, setSession } = useAuth()
+  const [tab, setTab] = useState<Tab>('login')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
-  const [loginForm, setLoginForm] = useState({
-    email: '',
-    password: '',
-  })
+  // login
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
 
-  const [registerForm, setRegisterForm] = useState({
+  // candidate register
+  const [cand, setCand] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    role: 'Candidate',
+    phoneNumber: '',
+    summary: '',
+    location: '',
   })
 
-  const clearFeedback = () => {
-    setMessage('')
+  // employer register
+  const [emp, setEmp] = useState({
+    firstName: '',
+    lastName: '',
+    password: '',
+    companyName: '',
+    companyDescription: '',
+    industry: '',
+    companySize: '',
+    contactEmail: '',
+  })
+
+  const reset = () => {
     setError('')
+    setSuccess('')
   }
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    clearFeedback()
-    setIsLoading(true)
-
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault()
+    reset()
+    setBusy(true)
     try {
-      const data = await authApi.login({
-        email: loginForm.email,
-        password: loginForm.password,
-      })
-
-      localStorage.setItem('accessToken', data.accessToken)
-      localStorage.setItem('refreshToken', data.refreshToken)
-      onLoginSuccess(data.accessToken)
-    } catch {
-      setError('Unable to sign in with those credentials.')
+      await login(loginEmail, loginPassword)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Login failed.')
     } finally {
-      setIsLoading(false)
+      setBusy(false)
     }
   }
 
-  const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    clearFeedback()
-    setIsLoading(true)
-
+  const handleRegisterCandidate = async (e: FormEvent) => {
+    e.preventDefault()
+    reset()
+    setBusy(true)
     try {
-      await authApi.register(registerForm)
-      setMessage('Registration successful. You can now sign in.')
-      setActiveTab('login')
-    } catch {
-      setError('Unable to create the account right now.')
+      const resp = await flowApi.registerCandidate(cand)
+      setSession({
+        accessToken: resp.accessToken,
+        refreshToken: resp.refreshToken,
+        userId: resp.userId,
+        email: resp.email || cand.email,
+        role: 'Candidate',
+        firstName: cand.firstName,
+        lastName: cand.lastName,
+      })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Registration failed.')
     } finally {
-      setIsLoading(false)
+      setBusy(false)
+    }
+  }
+
+  const handleRegisterEmployer = async (e: FormEvent) => {
+    e.preventDefault()
+    reset()
+    setBusy(true)
+    try {
+      const resp = await flowApi.registerEmployer(emp)
+      setSession({
+        accessToken: resp.accessToken,
+        refreshToken: resp.refreshToken,
+        userId: resp.userId,
+        email: resp.email || emp.contactEmail,
+        role: 'Employer',
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+      })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Registration failed.')
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
-    <div className="auth-app">
-      <div className="auth-surface">
-        <aside className="brand-panel">
-          <div className="brand-header">
-            <span className="brand-chip">Identity Hub</span>
-            <h2>Sign in and continue to your candidate area</h2>
-            <p>
-              This page focuses only on registration and login. Session tokens stay
-              hidden from the interface and are only used internally for API calls.
+    <div className="auth-shell">
+      <section className="auth-hero">
+        <div>
+          <span className="badge" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+            Job Portal
+          </span>
+          <h1>Hire faster.<br />Get hired smarter.</h1>
+          <p>
+            Match candidates and employers with a transparent, modern flow:
+            register, build your profile, apply or post jobs, get notified at
+            every step.
+          </p>
+        </div>
+        <div className="features">
+          <div className="feature">
+            <strong>For candidates</strong>
+            <p style={{ marginTop: 4, fontSize: '0.92rem' }}>
+              Build a profile, apply to jobs, track every status update in real time.
             </p>
           </div>
-          <div className="brand-metrics">
-            <div>
-              <span className="metric-label">Auth API</span>
-              <span className="metric-value">{AUTH_API_BASE.replace('http://', '')}</span>
-            </div>
-            <div>
-              <span className="metric-label">Password policy</span>
-              <span className="metric-value">Min 6 chars</span>
-            </div>
-            <div>
-              <span className="metric-label">Flow</span>
-              <span className="metric-value">Login, then auto-open CandidatePage</span>
-            </div>
-          </div>
-          <div className="status-card">
-            <div className="status-title">What happens next</div>
-            <p className="status-copy">
-              After sign in, the app navigates directly to `CandidatePage` and uses
-              the stored access token as a bearer token for candidate requests.
+          <div className="feature">
+            <strong>For employers</strong>
+            <p style={{ marginTop: 4, fontSize: '0.92rem' }}>
+              Post jobs, review applicants, and find matched candidates from one workspace.
             </p>
           </div>
-        </aside>
+          <div className="feature">
+            <strong>Direct messaging</strong>
+            <p style={{ marginTop: 4, fontSize: '0.92rem' }}>
+              Talk to your matches without leaving the portal.
+            </p>
+          </div>
+        </div>
+      </section>
 
-        <section className="auth-panel">
-          <div className="auth-header">
-            <div>
-              <p className="eyebrow">Identity service</p>
-              <h3>{activeTab === 'login' ? 'Sign in to the portal' : 'Create an account'}</h3>
-            </div>
-            <div className="tab-group">
-              <button
-                className={activeTab === 'login' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('login')}
-                type="button"
-              >
-                Sign in
-              </button>
-              <button
-                className={activeTab === 'register' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('register')}
-                type="button"
-              >
-                Register
-              </button>
-            </div>
+      <section className="auth-card">
+        <div className="auth-card-inner">
+          <div className="auth-tabs">
+            <button className={tab === 'login' ? 'active' : ''} onClick={() => { setTab('login'); reset() }}>
+              Sign in
+            </button>
+            <button className={tab === 'register-candidate' ? 'active' : ''} onClick={() => { setTab('register-candidate'); reset() }}>
+              Candidate sign up
+            </button>
+            <button className={tab === 'register-employer' ? 'active' : ''} onClick={() => { setTab('register-employer'); reset() }}>
+              Employer sign up
+            </button>
           </div>
 
-          <div className="feedback">
-            {message ? <div className="alert success">{message}</div> : null}
-            {error ? (
-              <div className="alert error">{error}</div>
-            ) : (
-              <div className="alert placeholder">
-                Sign in to continue, or create an account first.
+          {error ? <div className="alert error" style={{ marginBottom: 12 }}>{error}</div> : null}
+          {success ? <div className="alert success" style={{ marginBottom: 12 }}>{success}</div> : null}
+
+          {tab === 'login' ? (
+            <form className="form" onSubmit={handleLogin}>
+              <div className="field">
+                <label>Email</label>
+                <input className="input" type="email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="you@example.com" />
               </div>
-            )}
-          </div>
-
-          {activeTab === 'login' ? (
-            <form className="auth-form" onSubmit={handleLogin}>
-              <label>
-                Email address
-                <input
-                  type="email"
-                  required
-                  placeholder="you@email.com"
-                  value={loginForm.email}
-                  onChange={(event) =>
-                    setLoginForm((prev) => ({ ...prev, email: event.target.value }))
-                  }
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  placeholder="Minimum 6 characters"
-                  value={loginForm.password}
-                  onChange={(event) =>
-                    setLoginForm((prev) => ({ ...prev, password: event.target.value }))
-                  }
-                />
-              </label>
-              <button className="primary" type="submit" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign in'}
+              <div className="field">
+                <label>Password</label>
+                <input className="input" type="password" required minLength={6} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="At least 6 characters" />
+              </div>
+              <button className="btn btn-primary" disabled={busy} type="submit">
+                {busy ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+          ) : tab === 'register-candidate' ? (
+            <form className="form" onSubmit={handleRegisterCandidate}>
+              <div className="grid-2">
+                <div className="field">
+                  <label>First name</label>
+                  <input className="input" required value={cand.firstName} onChange={(e) => setCand({ ...cand, firstName: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Last name</label>
+                  <input className="input" required value={cand.lastName} onChange={(e) => setCand({ ...cand, lastName: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Email</label>
+                  <input className="input" type="email" required value={cand.email} onChange={(e) => setCand({ ...cand, email: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Password</label>
+                  <input className="input" type="password" required minLength={6} value={cand.password} onChange={(e) => setCand({ ...cand, password: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Phone</label>
+                  <input className="input" value={cand.phoneNumber} onChange={(e) => setCand({ ...cand, phoneNumber: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Location</label>
+                  <input className="input" value={cand.location} onChange={(e) => setCand({ ...cand, location: e.target.value })} />
+                </div>
+              </div>
+              <div className="field">
+                <label>Summary</label>
+                <textarea className="textarea" value={cand.summary} onChange={(e) => setCand({ ...cand, summary: e.target.value })} placeholder="Tell employers a bit about your experience…" />
+              </div>
+              <button className="btn btn-primary" disabled={busy} type="submit">
+                {busy ? 'Creating account…' : 'Create candidate account'}
               </button>
             </form>
           ) : (
-            <form className="auth-form" onSubmit={handleRegister}>
-              <div className="grid">
-                <label>
-                  First name
-                  <input
-                    type="text"
-                    required
-                    value={registerForm.firstName}
-                    onChange={(event) =>
-                      setRegisterForm((prev) => ({
-                        ...prev,
-                        firstName: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Last name
-                  <input
-                    type="text"
-                    required
-                    value={registerForm.lastName}
-                    onChange={(event) =>
-                      setRegisterForm((prev) => ({
-                        ...prev,
-                        lastName: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
+            <form className="form" onSubmit={handleRegisterEmployer}>
+              <div className="grid-2">
+                <div className="field">
+                  <label>First name</label>
+                  <input className="input" required value={emp.firstName} onChange={(e) => setEmp({ ...emp, firstName: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Last name</label>
+                  <input className="input" required value={emp.lastName} onChange={(e) => setEmp({ ...emp, lastName: e.target.value })} />
+                </div>
               </div>
-              <label>
-                Email address
-                <input
-                  type="email"
-                  required
-                  placeholder="you@email.com"
-                  value={registerForm.email}
-                  onChange={(event) =>
-                    setRegisterForm((prev) => ({ ...prev, email: event.target.value }))
-                  }
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  placeholder="Minimum 6 characters"
-                  value={registerForm.password}
-                  onChange={(event) =>
-                    setRegisterForm((prev) => ({
-                      ...prev,
-                      password: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label>
-                Role
-                <select
-                  required
-                  value={registerForm.role}
-                  onChange={(event) =>
-                    setRegisterForm((prev) => ({
-                      ...prev,
-                      role: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="Candidate">Candidate</option>
-                  <option value="Employer">Employer</option>
-                </select>
-              </label>
-              <button className="primary" type="submit" disabled={isLoading}>
-                {isLoading ? 'Creating account...' : 'Create account'}
+              <div className="grid-2">
+                <div className="field">
+                  <label>Password</label>
+                  <input className="input" type="password" required minLength={6} value={emp.password} onChange={(e) => setEmp({ ...emp, password: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Contact email</label>
+                  <input className="input" type="email" required value={emp.contactEmail} onChange={(e) => setEmp({ ...emp, contactEmail: e.target.value })} />
+                </div>
+              </div>
+              <div className="field">
+                <label>Company name</label>
+                <input className="input" required value={emp.companyName} onChange={(e) => setEmp({ ...emp, companyName: e.target.value })} />
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Industry</label>
+                  <input className="input" value={emp.industry} onChange={(e) => setEmp({ ...emp, industry: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Company size</label>
+                  <select className="input" value={emp.companySize} onChange={(e) => setEmp({ ...emp, companySize: e.target.value })}>
+                    <option value="">Select company size</option>
+                    <option value="Startup">Startup</option>
+                    <option value="Small">Small</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Large">Large</option>
+                    <option value="Enterprise">Enterprise</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <label>Company description</label>
+                <textarea className="textarea" value={emp.companyDescription} onChange={(e) => setEmp({ ...emp, companyDescription: e.target.value })} />
+              </div>
+              <button className="btn btn-primary" disabled={busy} type="submit">
+                {busy ? 'Creating account…' : 'Create employer account'}
               </button>
             </form>
           )}
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   )
 }

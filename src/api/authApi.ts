@@ -1,16 +1,11 @@
-import { postJson } from './http'
+import { request } from './http'
 
-export const AUTH_API_BASE = 'http://localhost:5287'
-
-export type LoginRequest = {
-  email: string
-  password: string
-  refreshToken?: string
-}
-
+export type LoginRequest = { email: string; password: string }
 export type LoginResponse = {
   accessToken: string
   refreshToken: string
+  userId?: string
+  role?: string
 }
 
 export type RegisterRequest = {
@@ -21,24 +16,17 @@ export type RegisterRequest = {
   role: string
 }
 
-export type RefreshRequest = {
-  refreshToken: string
+export type RegisterResponse = {
   userId: string
-}
-
-export type RefreshResponse = {
-  accessToken: string
+  role: string
+  email: string
 }
 
 export const authApi = {
   login: (body: LoginRequest) =>
-    postJson<LoginResponse, LoginRequest>(AUTH_API_BASE, '/Auth/login', body),
+    request<LoginResponse>('/Auth/login', { method: 'POST', body }),
   register: (body: RegisterRequest) =>
-    postJson<null, RegisterRequest>(AUTH_API_BASE, '/Auth/Register', body),
+    request<RegisterResponse>('/Auth/register', { method: 'POST', body }),
   logout: (refreshToken: string) =>
-    postJson<null, { refreshToken: string }>(AUTH_API_BASE, '/Auth/Logout', {
-      refreshToken,
-    }),
-  refresh: (body: RefreshRequest) =>
-    postJson<RefreshResponse, RefreshRequest>(AUTH_API_BASE, '/Auth/Refresh', body),
+    request<null>('/Auth/logout', { method: 'POST', body: { refreshToken } }),
 }

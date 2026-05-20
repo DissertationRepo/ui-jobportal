@@ -1,48 +1,54 @@
-import { useState } from 'react'
 import './App.css'
+import { AuthProvider, useAuth } from './state/AuthContext'
+import { NavProvider, useNav } from './state/NavContext'
 import { AuthPage } from './pages/AuthPage'
-import { CandidatePage } from './pages/CandidatePage'
+import { Layout } from './components/Layout'
+import { OverviewPage } from './pages/OverviewPage'
+import { CandidateJobsPage } from './pages/CandidateJobsPage'
+import { CandidateApplicationsPage } from './pages/CandidateApplicationsPage'
+import { CandidateProfilePage } from './pages/CandidateProfilePage'
+import { MatchingPage } from './pages/MatchingPage'
+import { EmployerCreateJobPage } from './pages/EmployerCreateJobPage'
+import { EmployerApplicationsPage } from './pages/EmployerApplicationsPage'
+import { EmployerProfilePage } from './pages/EmployerProfilePage'
+import { MessagingPage } from './pages/MessagingPage'
 
-type AppPage = 'auth' | 'candidate'
+function AuthenticatedShell() {
+  const { session } = useAuth()
+  const { route } = useNav()
+  const isEmp = session?.role === 'Employer'
 
-function App() {
-  const [accessToken, setAccessToken] = useState(
-    () => localStorage.getItem('accessToken') ?? ''
-  )
-  const [activePage, setActivePage] = useState<AppPage>(() =>
-    localStorage.getItem('accessToken') ? 'candidate' : 'auth'
-  )
-
-  const handleLoginSuccess = (nextAccessToken: string) => {
-    localStorage.setItem('accessToken', nextAccessToken)
-    setAccessToken(nextAccessToken)
-    setActivePage('candidate')
+  let page: React.ReactNode = <OverviewPage />
+  if (route === 'overview') page = <OverviewPage />
+  else if (route === 'messaging') page = <MessagingPage />
+  else if (route === 'matching') page = <MatchingPage />
+  else if (isEmp) {
+    if (route === 'create-job') page = <EmployerCreateJobPage />
+    else if (route === 'applications') page = <EmployerApplicationsPage />
+    else if (route === 'profile') page = <EmployerProfilePage />
+  } else {
+    if (route === 'jobs') page = <CandidateJobsPage />
+    else if (route === 'applications') page = <CandidateApplicationsPage />
+    else if (route === 'profile') page = <CandidateProfilePage />
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('userId')
-    setAccessToken('')
-    setActivePage('auth')
-  }
+  return <Layout>{page}</Layout>
+}
 
+function Root() {
+  const { isAuthenticated } = useAuth()
+  if (!isAuthenticated) return <AuthPage />
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <p className="eyebrow">Job portal workspace</p>
-        <h1>{activePage === 'auth' ? 'Simple account access' : 'Candidate profile lookup'}</h1>
-      </header>
-
-      <main>
-        {activePage === 'auth' ? (
-          <AuthPage onLoginSuccess={handleLoginSuccess} />
-        ) : (
-          <CandidatePage accessToken={accessToken} onLogout={handleLogout} />
-        )}
-      </main>
-    </div>
+    <NavProvider>
+      <AuthenticatedShell />
+    </NavProvider>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <AuthProvider>
+      <Root />
+    </AuthProvider>
+  )
+}
